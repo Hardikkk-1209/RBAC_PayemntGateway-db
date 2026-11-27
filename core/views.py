@@ -120,7 +120,11 @@ def admission_create(request):
                 messages.error(request,"Selected vehicle does not match the course category.")
                 return redirect("admission_create")
             admission_date=timezone.localdate()
-            training_start=date_type.fromisoformat(request.POST.get("training_start_date") or timezone.localdate().isoformat())
+            try:
+                training_start=date_type.fromisoformat(request.POST.get("training_start_date") or timezone.localdate().isoformat())
+            except ValueError:
+                messages.error(request,"Choose a valid training start date.")
+                return redirect("admission_create")
             days=int(request.POST.get("validity_days") or 30)
             total_sessions=int(request.POST.get("total_sessions") or 21)
             trainer_id=request.POST.get("trainer")
@@ -158,6 +162,7 @@ def admission_detail(request,pk):
     balance=max(Decimal("0.00"),admission.custom_fee-paid)
     return render(request,"admin/admission_detail.html",{"admission":admission,"sessions":sessions,
         "completed":completed,"remaining":max(0,admission.total_sessions-completed),"paid":paid,"balance":balance,
+        "today":timezone.localdate(),
         "whatsapp_phone": ("91" + "".join(ch for ch in admission.customer.phone if ch.isdigit())) if len("".join(ch for ch in admission.customer.phone if ch.isdigit())) == 10 else "".join(ch for ch in admission.customer.phone if ch.isdigit()),
         "whatsapp_message": f"Hello {admission.customer.full_name}, this is a reminder from Professional Motor Training School regarding your driving training. Please contact us for your next session.",
         "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all(),
