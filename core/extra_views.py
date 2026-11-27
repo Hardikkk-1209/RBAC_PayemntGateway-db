@@ -44,7 +44,8 @@ def vehicle_create(request):
         try:
             Vehicle.objects.create(registration_number=request.POST["registration_number"].strip().upper(),
                 vehicle_name=request.POST["vehicle_name"].strip(),category=request.POST["category"],
-                fuel_type=request.POST["fuel_type"],current_odometer=Decimal(request.POST.get("current_odometer") or "0"))
+                fuel_type=request.POST["fuel_type"],current_odometer=Decimal(request.POST.get("current_odometer") or "0"),
+                insurance_expiry=request.POST.get("insurance_expiry") or None,puc_expiry=request.POST.get("puc_expiry") or None)
             messages.success(request,"Vehicle added.")
             return redirect("vehicle_list")
         except (KeyError,ValueError,InvalidOperation):
@@ -208,3 +209,18 @@ def salary_mark_paid(request, pk):
             details={"amount": str(salary.final_payable), "month": str(salary.month)})
         messages.success(request, "Salary marked as paid.")
     return redirect("/admin-panel/salaries/?month=" + salary.month.strftime("%Y-%m"))
+
+@staff_required
+@require_POST
+def vehicle_status_update(request, pk):
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    status = request.POST.get("status")
+    if status not in dict(Vehicle.STATUS):
+        messages.error(request, "Choose a valid vehicle status.")
+    else:
+        vehicle.status = status
+        vehicle.save(update_fields=["status"])
+        AuditLog.objects.create(actor=request.user, action="vehicle_status_updated",
+            model_name="Vehicle", object_id=str(vehicle.pk), details={"status": status})
+        messages.success(request, "Vehicle status updated.")
+    return redirect("vehicle_list")
