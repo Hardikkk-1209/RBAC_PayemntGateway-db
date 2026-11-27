@@ -1,6 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
-from django.conf import settings\nfrom django.contrib import messages
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Count
@@ -17,7 +18,7 @@ from .models import AuditLog
 
 def home(request):
     courses = Course.objects.filter(active=True)
-    return render(request, "public/home.html", {"courses": courses, "request_settings_qr": settings.OWNER_QR_IMAGE, "owner_upi_id": settings.OWNER_UPI_ID})
+    return render(request, "public/home.html", {"courses": courses, "request_settings_qr": settings.OWNER_QR_IMAGE, "owner_upi_id": settings.OWNER_UPI_ID, "owner_name": settings.OWNER_NAME})
 
 def apply(request):
     if request.method == "POST":
@@ -72,11 +73,13 @@ def dashboard(request):
         "active_admissions": Admission.objects.filter(status="active").count(),
         "today_sessions": TrainingSession.objects.filter(session_date=today).count(),
         "pending_applications": TrainingApplication.objects.filter(status="pending").count(),
-        "pending_balance": Admission.objects.filter(status__in=["active","completed"]).aggregate(
-            total=Sum("custom_fee"))["total"] or Decimal("0.00"),
+        "pending_balance": Decimal("0.00"),
         "recent_sessions": TrainingSession.objects.select_related("admission__customer","trainer","vehicle").filter(session_date=today)[:8],
         "expiring_vehicles": Vehicle.objects.filter(status="available").order_by("insurance_expiry")[:5],
     }
+    total_fees = Admission.objects.filter(status__in=["active", "completed"]).aggregate(total=Sum("custom_fee"))["total"] or Decimal("0.00")
+    received = Payment.objects.filter(status="success").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    context["pending_balance"] = max(Decimal("0.00"), total_fees - received)
     return render(request, "admin/dashboard.html", context)
 
 @staff_required
@@ -140,7 +143,8 @@ def admission_detail(request,pk):
     balance=max(Decimal("0.00"),admission.custom_fee-paid)
     return render(request,"admin/admission_detail.html",{"admission":admission,"sessions":sessions,
         "completed":completed,"remaining":max(0,admission.total_sessions-completed),"paid":paid,"balance":balance,
-        "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all(),\n        "extensions":admission.extensions.select_related("approved_by").all()})
+        "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all(),
+        "extensions":admission.extensions.select_related("approved_by").all()})
 
 @staff_required
 def application_list(request):
@@ -160,7 +164,6 @@ def application_decision(request,pk):
                 address=app.address,date_of_birth=app.date_of_birth)
             app.customer=customer; app.status="approved"
             app.admin_remarks=request.POST.get("remarks",""); app.save()
-            app.save()
             messages.success(request,"Application approved. Create an admission and set the custom fee.")
     return redirect("application_list")
 
@@ -202,10 +205,24 @@ def training_complete(request,pk):
             messages.error(request,"Only one completed session per admission per day.")
         elif not session.trainer_id or not session.vehicle_id:
             messages.error(request,"Assign a trainer and vehicle before completion.")
+        elif not request.POST.get("odometer_after"):
+            messages.error(request,"Enter the vehicle odometer reading after training.")
         else:
             session.status="completed"; session.recorded_by=request.user
-            session.odometer_after=request.POST.get("odometer_after") or None
+            session.odometer_after=Decimal(request.POST.get("odometer_after"))
+            vehicle = Vehicle.objects.select_for_update().get(pk=session.vehicle_id)
+            if session.odometer_after < vehicle.current_odometer:
+                messages.error(request, "Odometer reading cannot be lower than the vehicle's last recorded reading.")
+                return redirect("training_list")
             session.remarks=request.POST.get("remarks",""); session.save()
+            vehicle.current_odometer = session.odometer_after
+            if request.POST.get("vehicle_condition") == "unsafe":
+                vehicle.status = "maintenance"
+            vehicle.save(update_fields=["current_odometer", "status"])
+            VehicleCheck.objects.create(vehicle=vehicle, session=session, odometer=session.odometer_after,
+                fuel_level=request.POST.get("fuel_level",""),
+                condition=request.POST.get("vehicle_condition","normal"),
+                remarks=request.POST.get("vehicle_remarks",""))
             AuditLog.objects.create(actor=request.user,action="completed",model_name="TrainingSession",object_id=str(session.pk))
             if completed.count()+1>=admission.total_sessions:
                 admission.status="completed"; admission.save(update_fields=["status"])
