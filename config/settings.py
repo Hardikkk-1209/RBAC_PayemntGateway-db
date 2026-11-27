@@ -10,7 +10,7 @@ CSRF_TRUSTED_ORIGINS = [u.strip() for u in os.getenv("CSRF_TRUSTED_ORIGINS", "")
 
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
-    "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
+    "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles", "storages",
     "core", "customers", "operations", "finance", "services",
 ]
 MIDDLEWARE = [
@@ -52,10 +52,31 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+SUPABASE_S3_ENDPOINT = os.getenv("SUPABASE_S3_ENDPOINT", "")
+SUPABASE_S3_REGION = os.getenv("SUPABASE_S3_REGION", "ap-south-1")
+SUPABASE_S3_BUCKET = os.getenv("SUPABASE_S3_BUCKET", "")
+SUPABASE_S3_ACCESS_KEY = os.getenv("SUPABASE_S3_ACCESS_KEY", "")
+SUPABASE_S3_SECRET_KEY = os.getenv("SUPABASE_S3_SECRET_KEY", "")
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
+if all([SUPABASE_S3_ENDPOINT, SUPABASE_S3_BUCKET, SUPABASE_S3_ACCESS_KEY, SUPABASE_S3_SECRET_KEY]):
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": SUPABASE_S3_BUCKET,
+            "endpoint_url": SUPABASE_S3_ENDPOINT,
+            "region_name": SUPABASE_S3_REGION,
+            "access_key": SUPABASE_S3_ACCESS_KEY,
+            "secret_key": SUPABASE_S3_SECRET_KEY,
+            "addressing_style": "path",
+            "signature_version": "s3v4",
+            "querystring_auth": True,
+            "file_overwrite": False,
+            "default_acl": None,
+        },
+    }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "admin_login"
 LOGIN_REDIRECT_URL = "dashboard"
@@ -64,9 +85,6 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 X_FRAME_OPTIONS = "DENY"
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
-RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 OWNER_UPI_ID = os.getenv("OWNER_UPI_ID", "")
 OWNER_QR_IMAGE = os.getenv("OWNER_QR_IMAGE", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@example.com")
