@@ -72,3 +72,21 @@ class TrainingRulesTests(TestCase):
         self.admission.refresh_from_db()
         self.assertEqual(session.status, "missed")
         self.assertEqual(self.admission.current_expiry_date, old_expiry + __import__("datetime").timedelta(days=1))
+
+    def test_customer_cannot_have_two_sessions_on_same_day(self):
+        second_admission = Admission.objects.create(
+            customer=self.customer, course=self.course, vehicle=self.vehicle,
+            admission_date=date.today(), original_expiry_date=date.today(),
+            current_expiry_date=date.today(), total_sessions=21,
+            custom_fee=6000, status="active"
+        )
+        first = TrainingSession.objects.create(
+            admission=self.admission, session_date=date.today(), start_time="09:00",
+            end_time="09:30", trainer=self.trainer, vehicle=self.vehicle, status="scheduled"
+        )
+        response = self.client.post(reverse("training_create"), {
+            "admission": str(second_admission.pk), "session_date": date.today().isoformat(),
+            "start_time": "10:00", "end_time": "10:30", "trainer": str(self.trainer.pk)
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(TrainingSession.objects.filter(admission__customer=self.customer, session_date=date.today()).count(), 1)
