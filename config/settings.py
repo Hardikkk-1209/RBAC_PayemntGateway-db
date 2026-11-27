@@ -85,6 +85,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 X_FRAME_OPTIONS = "DENY"
+OWNER_NAME = os.getenv("OWNER_NAME", "Professional Motor Training School")
 OWNER_UPI_ID = os.getenv("OWNER_UPI_ID", "")
 OWNER_QR_IMAGE = os.getenv("OWNER_QR_IMAGE", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@example.com")
