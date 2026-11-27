@@ -58,3 +58,17 @@ class TrainingRulesTests(TestCase):
         self.assertEqual(response.status_code, 302)
         salary = Salary.objects.get(employee=self.trainer)
         self.assertEqual(salary.final_payable, 13750)
+
+    def test_missed_session_extends_admission_by_one_day(self):
+        session = TrainingSession.objects.create(
+            admission=self.admission, session_date=date.today(),
+            start_time="09:00", end_time="09:30",
+            trainer=self.trainer, vehicle=self.vehicle, status="scheduled"
+        )
+        old_expiry = self.admission.current_expiry_date
+        response = self.client.post(reverse("training_missed", args=[session.pk]))
+        self.assertEqual(response.status_code, 302)
+        session.refresh_from_db()
+        self.admission.refresh_from_db()
+        self.assertEqual(session.status, "missed")
+        self.assertEqual(self.admission.current_expiry_date, old_expiry + __import__("datetime").timedelta(days=1))
