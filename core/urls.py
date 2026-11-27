@@ -15,6 +15,7 @@ urlpatterns = [
     path("training/", views.training_list, name="training_list"),
     path("training/new/", views.training_create, name="training_create"),
     path("training/<uuid:pk>/complete/", views.training_complete, name="training_complete"),
+    path("training/<uuid:pk>/reschedule/", views.training_reschedule, name="training_reschedule"),
     path("training/<uuid:pk>/missed/", views.training_missed, name="training_missed"),
     path("vehicles/", views.vehicle_list, name="vehicle_list"),
     path("employees/", views.employee_list, name="employee_list"),
