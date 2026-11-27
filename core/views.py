@@ -144,7 +144,7 @@ def admission_detail(request,pk):
     balance=max(Decimal("0.00"),admission.custom_fee-paid)
     return render(request,"admin/admission_detail.html",{"admission":admission,"sessions":sessions,
         "completed":completed,"remaining":max(0,admission.total_sessions-completed),"paid":paid,"balance":balance,
-        "whatsapp_phone": "".join(ch for ch in admission.customer.phone if ch.isdigit()),
+        "whatsapp_phone": ("91" + "".join(ch for ch in admission.customer.phone if ch.isdigit())) if len("".join(ch for ch in admission.customer.phone if ch.isdigit())) == 10 else "".join(ch for ch in admission.customer.phone if ch.isdigit()),
         "whatsapp_message": f"Hello {admission.customer.full_name}, this is a reminder from Professional Motor Training School regarding your driving training. Please contact us for your next session.",
         "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all(),
         "extensions":admission.extensions.select_related("approved_by").all()})
@@ -183,6 +183,8 @@ def training_create(request):
         session_date=request.POST.get("session_date")
         if admission.status!="active" or session_date>str(admission.current_expiry_date):
             messages.error(request,"Admission is not active for this date.")
+        elif TrainingSession.objects.filter(admission=admission,session_date=session_date,status__in=["scheduled","completed"]).exists():
+            messages.error(request,"This customer already has a training session scheduled for that day.")
         else:
             TrainingSession.objects.create(admission=admission,session_date=session_date,
                 start_time=request.POST.get("start_time") or "09:00",trainer_id=request.POST.get("trainer"),
@@ -200,7 +202,9 @@ def training_complete(request,pk):
         session=get_object_or_404(TrainingSession.objects.select_for_update().select_related("admission"),pk=pk)
         admission=Admission.objects.select_for_update().get(pk=session.admission_id)
         completed=TrainingSession.objects.filter(admission=admission,status="completed")
-        if session.session_date>timezone.localdate() or session.session_date>admission.current_expiry_date:
+        if session.status!="scheduled":
+            messages.error(request,"Only scheduled sessions can be completed.")
+        elif session.session_date>timezone.localdate() or session.session_date>admission.current_expiry_date:
             messages.error(request,"Cannot complete a future or expired session.")
         elif admission.status!="active" or completed.count()>=admission.total_sessions:
             messages.error(request,"Admission is inactive or all sessions are completed.")
