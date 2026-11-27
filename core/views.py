@@ -1,6 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
-from django.contrib import messages
+from django.conf import settings\nfrom django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Count
@@ -10,14 +10,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from customers.models import Customer, TrainingApplication
-from operations.models import Admission, Course, Employee, TrainingSession, Vehicle, FuelRecord, MaintenanceRecord
+from operations.models import Admission, Course, Employee, TrainingSession, Vehicle, FuelRecord, MaintenanceRecord, VehicleCheck
 from finance.models import Payment
 from services.models import ServiceRequest
 from .models import AuditLog
 
 def home(request):
     courses = Course.objects.filter(active=True)
-    return render(request, "public/home.html", {"courses": courses})
+    return render(request, "public/home.html", {"courses": courses, "request_settings_qr": settings.OWNER_QR_IMAGE, "owner_upi_id": settings.OWNER_UPI_ID})
 
 def apply(request):
     if request.method == "POST":
@@ -140,7 +140,7 @@ def admission_detail(request,pk):
     balance=max(Decimal("0.00"),admission.custom_fee-paid)
     return render(request,"admin/admission_detail.html",{"admission":admission,"sessions":sessions,
         "completed":completed,"remaining":max(0,admission.total_sessions-completed),"paid":paid,"balance":balance,
-        "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all()})
+        "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all(),\n        "extensions":admission.extensions.select_related("approved_by").all()})
 
 @staff_required
 def application_list(request):
