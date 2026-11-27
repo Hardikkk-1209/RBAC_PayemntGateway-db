@@ -4,7 +4,7 @@ class Payment(models.Model):
     admission=models.ForeignKey("operations.Admission",related_name="payments",null=True,blank=True,on_delete=models.PROTECT)
     customer=models.ForeignKey("customers.Customer",related_name="payments",on_delete=models.PROTECT)
     amount=models.DecimalField(max_digits=10,decimal_places=2)
-    payment_method=models.CharField(max_length=20,default="razorpay")
+    payment_method=models.CharField(max_length=20,choices=[("upi_manual","UPI (manual verification)"),("cash","Cash"),("bank_transfer","Bank transfer")],default="upi_manual")
     gateway_order_id=models.CharField(max_length=100,blank=True,db_index=True)
     gateway_payment_id=models.CharField(max_length=100,blank=True,unique=True,null=True)
     status=models.CharField(max_length=12,choices=STATUS,default="created",db_index=True)
