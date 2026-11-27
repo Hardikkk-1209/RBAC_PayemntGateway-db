@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.db import transaction
@@ -14,7 +14,7 @@ from services.models import Service, ServiceRequest
 @staff_required
 @require_POST
 def extend_admission(request, pk):
-    admission=get_object_or_404(Admission.objects.select_for_update(),pk=pk)
+    admission=get_object_or_404(Admission,pk=pk)
     try:
         days=int(request.POST.get("extension_days","0"))
         if days<1 or days>90: raise ValueError
@@ -57,7 +57,7 @@ def fuel_create(request):
         try:
             vehicle=get_object_or_404(Vehicle,pk=request.POST["vehicle"])
             FuelRecord.objects.create(vehicle=vehicle,fuel_type=vehicle.fuel_type,
-                refill_date=timezone.make_aware(timezone.datetime.fromisoformat(request.POST["refill_date"])),
+                refill_date=timezone.make_aware(datetime.fromisoformat(request.POST["refill_date"])),
                 quantity=Decimal(request.POST["quantity"]),unit=request.POST.get("unit","litres"),
                 amount=Decimal(request.POST["amount"]),odometer=Decimal(request.POST["odometer"]),
                 remarks=request.POST.get("remarks","").strip())
@@ -104,3 +104,33 @@ def service_request_create(request):
     return render(request,"admin/service_request_form.html",{
         "customers":Customer.objects.all().order_by("full_name"),"services":Service.objects.filter(active=True),
         "employees":Employee.objects.filter(active=True)})
+
+@staff_required
+def manual_payment(request):
+    from finance.models import Payment
+    import uuid
+    from django.db.models import Sum
+    if request.method == "POST":
+        try:
+            admission = get_object_or_404(Admission.objects.select_related("customer"), pk=request.POST["admission"])
+            amount = Decimal(request.POST["amount"])
+            if amount <= 0:
+                raise ValueError
+            received = admission.payments.filter(status="success").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+            if amount > admission.custom_fee - received:
+                messages.error(request, "Payment exceeds the outstanding balance.")
+                return redirect("manual_payment")
+            Payment.objects.create(admission=admission, customer=admission.customer,
+                amount=amount, payment_method=request.POST.get("payment_method", "upi_manual"),
+                status="success", payment_date=timezone.now(),
+                receipt_number=f"PMTS-{timezone.now():%Y%m%d}-{uuid.uuid4().hex[:8].upper()}")
+            AuditLog.objects.create(actor=request.user, action="payment_recorded",
+                model_name="Payment", object_id=str(admission.pk),
+                details={"amount": str(amount), "method": request.POST.get("payment_method", "upi_manual")})
+            messages.success(request, "Payment recorded as received after manual verification.")
+            return redirect("payment_list")
+        except (KeyError, ValueError, InvalidOperation):
+            messages.error(request, "Check the admission and payment amount.")
+    return render(request, "admin/manual_payment.html", {
+        "admissions": Admission.objects.filter(status__in=["active", "completed"]).select_related("customer", "course"),
+    })
