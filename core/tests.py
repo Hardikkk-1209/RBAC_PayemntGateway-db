@@ -20,9 +20,9 @@ class TrainingRulesTests(TestCase):
         self.assertEqual(self.client.get(reverse("dashboard")).status_code,302)
     def test_second_completed_session_same_day_is_rejected(self):
         first=TrainingSession.objects.create(admission=self.admission,session_date=date.today(),start_time="09:00",trainer=self.trainer,vehicle=self.vehicle,status="scheduled")
-        self.client.post(reverse("training_complete",args=[first.pk]))
+        self.client.post(reverse("training_complete",args=[first.pk]), {"odometer_after": "0"})
         second=TrainingSession.objects.create(admission=self.admission,session_date=date.today(),start_time="11:00",trainer=self.trainer,vehicle=self.vehicle,status="scheduled")
-        self.client.post(reverse("training_complete",args=[second.pk]))
+        self.client.post(reverse("training_complete",args=[second.pk]), {"odometer_after": "0"})
         self.assertEqual(TrainingSession.objects.filter(admission=self.admission,status="completed").count(),1)
     def test_public_application_page_loads(self):
         self.client.logout()
