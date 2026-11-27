@@ -19,12 +19,13 @@ Free tiers have limits and may change. Render Free web services sleep after 15 m
 
 - Public home, course/service listing and training application
 - Admin login, dashboard, customer, employee, course, vehicle and admission management
-- Training scheduling/completion with 21-session and one-completed-session-per-day enforcement
+- Training scheduling with actual start/end time capture, instructor and vehicle assignment, completion records and one-session-per-customer-per-day enforcement
 - Admin-approved admission extensions
 - Fuel, vehicle checks and maintenance records
 - Payment ledger with manual UPI/cash reconciliation
 - Licence/RC service catalogue and requests
-- Employee attendance and salary data models
+- Employee daily attendance, monthly salary preparation and paid-status tracking
+- Date-range reports with CSV export
 
 ## Run locally
 
