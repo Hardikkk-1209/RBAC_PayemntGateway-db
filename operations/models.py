@@ -48,6 +48,7 @@ class Admission(models.Model):
     original_expiry_date=models.DateField()
     current_expiry_date=models.DateField()
     total_sessions=models.PositiveSmallIntegerField(default=21)
+    preferred_training_time=models.TimeField(null=True,blank=True)
     custom_fee=models.DecimalField(max_digits=10,decimal_places=2)
     status=models.CharField(max_length=20,choices=STATUS,default="active",db_index=True)
     remarks=models.TextField(blank=True)
