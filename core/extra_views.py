@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from .views import staff_required
 from .models import AuditLog
-from operations.models import Admission, AdmissionExtension, Vehicle, Employee, FuelRecord, MaintenanceRecord, TrainingSession
+from operations.models import Admission, AdmissionExtension, Vehicle, Employee, FuelRecord, MaintenanceRecord, TrainingSession, Attendance, Salary
 from customers.models import Customer
 from services.models import Service, ServiceRequest
 
@@ -134,3 +134,76 @@ def manual_payment(request):
     return render(request, "admin/manual_payment.html", {
         "admissions": Admission.objects.filter(status__in=["active", "completed"]).select_related("customer", "course"),
     })
+
+@staff_required
+@require_POST
+def attendance_save(request):
+    employee = get_object_or_404(Employee, pk=request.POST.get("employee"))
+    day = request.POST.get("date") or timezone.localdate().isoformat()
+    status = request.POST.get("status")
+    if status not in dict(Attendance.STATUS):
+        messages.error(request, "Choose a valid attendance status.")
+    else:
+        Attendance.objects.update_or_create(employee=employee, date=day,
+            defaults={"status": status, "remarks": request.POST.get("remarks", "").strip()})
+        AuditLog.objects.create(actor=request.user, action="attendance_saved",
+            model_name="Attendance", object_id=str(employee.pk),
+            details={"date": day, "status": status})
+        messages.success(request, "Attendance saved.")
+    return redirect("/admin-panel/employees/?date=" + day)
+
+@staff_required
+def salary_list(request):
+    month_raw = request.GET.get("month") or timezone.localdate().strftime("%Y-%m")
+    try:
+        month = datetime.strptime(month_raw, "%Y-%m").date().replace(day=1)
+    except ValueError:
+        month = timezone.localdate().replace(day=1)
+        month_raw = month.strftime("%Y-%m")
+        messages.error(request, "Choose a valid salary month.")
+    return render(request, "admin/salaries.html", {
+        "salaries": Salary.objects.filter(month=month).select_related("employee").order_by("employee__employee_name"),
+        "month": month_raw, "employees": Employee.objects.filter(active=True).order_by("employee_name")
+    })
+
+@staff_required
+@require_POST
+def salary_generate(request):
+    try:
+        employee = get_object_or_404(Employee, pk=request.POST.get("employee"))
+        month = datetime.strptime(request.POST.get("month"), "%Y-%m").date().replace(day=1)
+        advance = Decimal(request.POST.get("advance") or "0")
+        deductions = Decimal(request.POST.get("deductions") or "0")
+        bonus = Decimal(request.POST.get("bonus") or "0")
+        if min(advance, deductions, bonus) < 0:
+            raise ValueError
+        attendance = Attendance.objects.filter(employee=employee, date__year=month.year, date__month=month.month)
+        present_days = attendance.filter(status="present").count()
+        leave_days = attendance.filter(status="leave").count()
+        base = employee.monthly_salary
+        payable = base + bonus - advance - deductions
+        if payable < 0:
+            raise ValueError
+        Salary.objects.update_or_create(employee=employee, month=month, defaults={
+            "base_salary": base, "present_days": present_days, "leave_days": leave_days,
+            "advance": advance, "deductions": deductions, "bonus": bonus,
+            "final_payable": payable, "status": "pending", "paid_at": None
+        })
+        messages.success(request, "Salary prepared.")
+    except (ValueError, InvalidOperation, TypeError):
+        messages.error(request, "Check the salary month and non-negative amounts.")
+    return redirect("/admin-panel/salaries/?month=" + request.POST.get("month", ""))
+
+@staff_required
+@require_POST
+def salary_mark_paid(request, pk):
+    salary = get_object_or_404(Salary, pk=pk)
+    if salary.status != "paid":
+        salary.status = "paid"
+        salary.paid_at = timezone.now()
+        salary.save(update_fields=["status", "paid_at"])
+        AuditLog.objects.create(actor=request.user, action="salary_paid",
+            model_name="Salary", object_id=str(salary.pk),
+            details={"amount": str(salary.final_payable), "month": str(salary.month)})
+        messages.success(request, "Salary marked as paid.")
+    return redirect("/admin-panel/salaries/?month=" + salary.month.strftime("%Y-%m"))
