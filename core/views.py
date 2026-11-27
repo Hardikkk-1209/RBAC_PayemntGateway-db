@@ -125,7 +125,7 @@ def admission_create(request):
                 admission_date=start,original_expiry_date=start+timedelta(days=days),
                 current_expiry_date=start+timedelta(days=days),total_sessions=int(request.POST.get("total_sessions") or 21),
                 custom_fee=Decimal(request.POST.get("custom_fee") or "0"),
-                preferred_training_time=request.POST.get("preferred_training_time") or None,status="active")
+                status="active")
             AuditLog.objects.create(actor=request.user,action="created",model_name="Admission",object_id=str(admission.pk))
         messages.success(request,"Admission created.")
         return redirect("admission_detail",pk=admission.pk)
@@ -159,10 +159,12 @@ def admission_card(request, pk):
     paid = admission.payments.filter(status="success").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
     balance = max(Decimal("0.00"), admission.custom_fee - paid)
     rows = sessions[:admission.total_sessions]
+    session_time = sessions[0].start_time if sessions else None
     rows += [None] * max(0, admission.total_sessions - len(rows))
     return render(request, "admin/admission_card.html", {
         "admission": admission,
         "attendance_rows": rows,
+        "session_time": session_time,
         "paid": paid,
         "balance": balance,
         "owner_name": settings.OWNER_NAME,
@@ -206,8 +208,13 @@ def training_create(request):
         elif TrainingSession.objects.filter(admission=admission,session_date=session_date,status__in=["scheduled","completed"]).exists():
             messages.error(request,"This customer already has a training session scheduled for that day.")
         else:
+            start_time = request.POST.get("start_time") or "22:00"
+            end_time = request.POST.get("end_time") or ""
+            if not end_time or end_time <= start_time:
+                messages.error(request, "End time must be later than start time.")
+                return redirect("training_create")
             TrainingSession.objects.create(admission=admission,session_date=session_date,
-                start_time=request.POST.get("start_time") or "09:00",end_time=request.POST.get("end_time") or None,trainer_id=request.POST.get("trainer"),
+                start_time=start_time,end_time=end_time,trainer_id=request.POST.get("trainer"),
                 vehicle_id=request.POST.get("vehicle") or admission.vehicle_id,status="scheduled")
             messages.success(request,"Training scheduled.")
         return redirect("training_list")
