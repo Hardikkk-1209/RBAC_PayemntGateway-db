@@ -10,7 +10,6 @@ urlpatterns = [
     path("admissions/", views.admission_list, name="admission_list"),
     path("admissions/new/", views.admission_create, name="admission_create"),
     path("admissions/<uuid:pk>/", views.admission_detail, name="admission_detail"),
-    path("admissions/<uuid:pk>/attendance-card/", views.admission_card, name="admission_card"),
     path("applications/", views.application_list, name="application_list"),
     path("applications/<int:pk>/decision/", views.application_decision, name="application_decision"),
     path("training/", views.training_list, name="training_list"),
@@ -27,5 +26,9 @@ urlpatterns = [
     path("vehicles/fuel/new/", extra_views.fuel_create, name="fuel_create"),
     path("vehicles/maintenance/new/", extra_views.maintenance_create, name="maintenance_create"),
     path("employees/new/", extra_views.employee_create, name="employee_create"),
+    path("employees/attendance/save/", extra_views.attendance_save, name="attendance_save"),
+    path("salaries/", extra_views.salary_list, name="salary_list"),
+    path("salaries/generate/", extra_views.salary_generate, name="salary_generate"),
+    path("salaries/<int:pk>/paid/", extra_views.salary_mark_paid, name="salary_mark_paid"),
     path("services/new/", extra_views.service_request_create, name="service_request_create"),
 ]
