@@ -1,5 +1,6 @@
 from django.urls import path
-from . import views\nfrom . import extra_views
+from . import views
+from . import extra_views
 urlpatterns = [
     path("login/", views.admin_login, name="admin_login"),
     path("logout/", views.admin_logout, name="admin_logout"),
@@ -17,6 +18,13 @@ urlpatterns = [
     path("vehicles/", views.vehicle_list, name="vehicle_list"),
     path("employees/", views.employee_list, name="employee_list"),
     path("payments/", views.payment_list, name="payment_list"),
+    path("payments/record/", extra_views.manual_payment, name="manual_payment"),
     path("services/", views.service_request_list, name="service_request_list"),
-    path("reports/", views.reports, name="reports"),\n    path("admissions/<uuid:pk>/extend/", extra_views.extend_admission, name="extend_admission"),\n    path("vehicles/new/", extra_views.vehicle_create, name="vehicle_create"),\n    path("vehicles/fuel/new/", extra_views.fuel_create, name="fuel_create"),\n    path("vehicles/maintenance/new/", extra_views.maintenance_create, name="maintenance_create"),\n    path("employees/new/", extra_views.employee_create, name="employee_create"),\n    path("services/new/", extra_views.service_request_create, name="service_request_create"),
+    path("reports/", views.reports, name="reports"),
+    path("admissions/<uuid:pk>/extend/", extra_views.extend_admission, name="extend_admission"),
+    path("vehicles/new/", extra_views.vehicle_create, name="vehicle_create"),
+    path("vehicles/fuel/new/", extra_views.fuel_create, name="fuel_create"),
+    path("vehicles/maintenance/new/", extra_views.maintenance_create, name="maintenance_create"),
+    path("employees/new/", extra_views.employee_create, name="employee_create"),
+    path("services/new/", extra_views.service_request_create, name="service_request_create"),
 ]
