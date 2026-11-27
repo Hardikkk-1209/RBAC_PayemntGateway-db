@@ -21,6 +21,7 @@ urlpatterns = [
     path("payments/record/", extra_views.manual_payment, name="manual_payment"),
     path("services/", views.service_request_list, name="service_request_list"),
     path("reports/", views.reports, name="reports"),
+    path("reports/export/", views.report_export, name="report_export"),
     path("admissions/<uuid:pk>/extend/", extra_views.extend_admission, name="extend_admission"),
     path("vehicles/new/", extra_views.vehicle_create, name="vehicle_create"),
     path("vehicles/fuel/new/", extra_views.fuel_create, name="fuel_create"),
