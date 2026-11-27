@@ -60,7 +60,7 @@ def fuel_create(request):
                 refill_date=timezone.make_aware(datetime.fromisoformat(request.POST["refill_date"])),
                 quantity=Decimal(request.POST["quantity"]),unit=request.POST.get("unit","litres"),
                 amount=Decimal(request.POST["amount"]),odometer=Decimal(request.POST["odometer"]),
-                remarks=request.POST.get("remarks","").strip())
+                remarks=request.POST.get("remarks","").strip(), receipt=request.FILES.get("receipt"))
             messages.success(request,"Fuel refill recorded.")
             return redirect("vehicle_list")
         except (KeyError,ValueError,InvalidOperation):
@@ -74,7 +74,7 @@ def maintenance_create(request):
             MaintenanceRecord.objects.create(vehicle_id=request.POST["vehicle"],
                 maintenance_date=request.POST["maintenance_date"],maintenance_type=request.POST["maintenance_type"].strip(),
                 description=request.POST.get("description","").strip(),amount=Decimal(request.POST.get("amount") or "0"),
-                odometer=Decimal(request.POST["odometer"]),next_service_date=request.POST.get("next_service_date") or None)
+                odometer=Decimal(request.POST["odometer"]),next_service_date=request.POST.get("next_service_date") or None,invoice=request.FILES.get("invoice"))
             messages.success(request,"Maintenance record saved.")
             return redirect("vehicle_list")
         except (KeyError,ValueError,InvalidOperation):
@@ -122,6 +122,7 @@ def manual_payment(request):
                 return redirect("manual_payment")
             Payment.objects.create(admission=admission, customer=admission.customer,
                 amount=amount, payment_method=request.POST.get("payment_method", "upi_manual"),
+                gateway_order_id=request.POST.get("transaction_reference", "").strip(),
                 status="success", payment_date=timezone.now(),
                 receipt_number=f"PMTS-{timezone.now():%Y%m%d}-{uuid.uuid4().hex[:8].upper()}")
             AuditLog.objects.create(actor=request.user, action="payment_recorded",
