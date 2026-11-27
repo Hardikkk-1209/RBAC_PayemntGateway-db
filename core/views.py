@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, date as date_type
 from decimal import Decimal
 from django.conf import settings
 from django.contrib import messages
@@ -6,12 +6,12 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Count
 from django.db import transaction
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from customers.models import Customer, TrainingApplication
-from operations.models import Admission, Course, Employee, TrainingSession, Vehicle, FuelRecord, MaintenanceRecord, VehicleCheck
+from operations.models import Admission, Course, Employee, TrainingSession, Vehicle, FuelRecord, MaintenanceRecord, VehicleCheck, Attendance, Salary
 from finance.models import Payment
 from services.models import ServiceRequest
 from .models import AuditLog
@@ -151,27 +151,6 @@ def admission_detail(request,pk):
         "extensions":admission.extensions.select_related("approved_by").all()})
 
 @staff_required
-def admission_card(request, pk):
-    admission = get_object_or_404(
-        Admission.objects.select_related("customer", "course", "vehicle"), pk=pk
-    )
-    sessions = list(admission.sessions.select_related("trainer").order_by("session_date", "start_time"))
-    paid = admission.payments.filter(status="success").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-    balance = max(Decimal("0.00"), admission.custom_fee - paid)
-    rows = sessions[:admission.total_sessions]
-    session_time = sessions[0].start_time if sessions else None
-    rows += [None] * max(0, admission.total_sessions - len(rows))
-    return render(request, "admin/admission_card.html", {
-        "admission": admission,
-        "attendance_rows": rows,
-        "session_time": session_time,
-        "paid": paid,
-        "balance": balance,
-        "owner_name": settings.OWNER_NAME,
-        "owner_phone": getattr(settings, "OWNER_PHONE", ""),
-    })
-
-@staff_required
 def application_list(request):
     return render(request,"admin/applications.html",{"applications":TrainingApplication.objects.select_related("course","preferred_vehicle").order_by("-created_at")[:200]})
 
@@ -271,8 +250,12 @@ def vehicle_list(request):
 
 @staff_required
 def employee_list(request):
-    return render(request,"admin/employees.html",{"employees":Employee.objects.filter(active=True),
-        "attendance":None})
+    selected_date = request.GET.get("date") or timezone.localdate().isoformat()
+    employees = Employee.objects.filter(active=True).order_by("employee_name")
+    records = {str(a.employee_id): a.status for a in Attendance.objects.filter(date=selected_date)}
+    return render(request, "admin/employees.html", {
+        "employees": employees, "attendance_records": records, "selected_date": selected_date
+    })
 
 @staff_required
 def payment_list(request):
@@ -284,8 +267,26 @@ def service_request_list(request):
 
 @staff_required
 def reports(request):
-    return render(request,"admin/reports.html",{
-        "total_customers":Customer.objects.count(),"total_admissions":Admission.objects.count(),
-        "completed_sessions":TrainingSession.objects.filter(status="completed").count(),
-        "total_revenue":Payment.objects.filter(status="success").aggregate(total=Sum("amount"))["total"] or 0,
+    today = timezone.localdate()
+    try:
+        start = date_type.fromisoformat(request.GET.get("start") or today.replace(day=1).isoformat())
+        end = date_type.fromisoformat(request.GET.get("end") or today.isoformat())
+        if end < start:
+            raise ValueError
+    except ValueError:
+        start, end = today.replace(day=1), today
+        messages.error(request, "Choose a valid date range.")
+    sessions = TrainingSession.objects.filter(session_date__range=(start, end))
+    payments = Payment.objects.filter(status="success", payment_date__date__range=(start, end))
+    fuel = FuelRecord.objects.filter(refill_date__date__range=(start, end))
+    maintenance = MaintenanceRecord.objects.filter(maintenance_date__range=(start, end))
+    return render(request, "admin/reports.html", {
+        "start_date": start.isoformat(), "end_date": end.isoformat(),
+        "total_customers": Customer.objects.count(), "total_admissions": Admission.objects.count(),
+        "completed_sessions": sessions.filter(status="completed").count(),
+        "scheduled_sessions": sessions.filter(status="scheduled").count(),
+        "missed_sessions": sessions.filter(status="missed").count(),
+        "total_revenue": payments.aggregate(total=Sum("amount"))["total"] or Decimal("0.00"),
+        "fuel_expense": fuel.aggregate(total=Sum("amount"))["total"] or Decimal("0.00"),
+        "maintenance_expense": maintenance.aggregate(total=Sum("amount"))["total"] or Decimal("0.00"),
     })
