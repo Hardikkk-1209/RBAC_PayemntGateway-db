@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.db import transaction
@@ -25,7 +25,7 @@ def extend_admission(request, pk):
         messages.error(request,"A completed course cannot be extended.")
         return redirect("admission_detail",pk=pk)
     previous=admission.current_expiry_date
-    new_expiry=previous+timezone.timedelta(days=days)
+    new_expiry=previous+timedelta(days=days)
     with transaction.atomic():
         AdmissionExtension.objects.create(admission=admission,previous_expiry=previous,
             extension_days=days,new_expiry=new_expiry,reason=request.POST.get("reason","").strip(),
