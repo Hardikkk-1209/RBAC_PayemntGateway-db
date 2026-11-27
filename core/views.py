@@ -129,6 +129,7 @@ def admission_create(request):
         messages.success(request,"Admission created.")
         return redirect("admission_detail",pk=admission.pk)
     return render(request,"admin/admission_form.html",{
+        "selected_customer": request.GET.get("customer", ""),
         "customers":Customer.objects.all().order_by("full_name"),"courses":Course.objects.filter(active=True),
         "vehicles":Vehicle.objects.filter(status="available"),"employees":Employee.objects.filter(active=True)
     })
@@ -143,6 +144,8 @@ def admission_detail(request,pk):
     balance=max(Decimal("0.00"),admission.custom_fee-paid)
     return render(request,"admin/admission_detail.html",{"admission":admission,"sessions":sessions,
         "completed":completed,"remaining":max(0,admission.total_sessions-completed),"paid":paid,"balance":balance,
+        "whatsapp_phone": "".join(ch for ch in admission.customer.phone if ch.isdigit()),
+        "whatsapp_message": f"Hello {admission.customer.full_name}, this is a reminder from Professional Motor Training School regarding your driving training. Please contact us for your next session.",
         "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all(),
         "extensions":admission.extensions.select_related("approved_by").all()})
 
