@@ -124,7 +124,8 @@ def admission_create(request):
             admission=Admission.objects.create(customer=customer,course=course,vehicle=vehicle,
                 admission_date=start,original_expiry_date=start+timedelta(days=days),
                 current_expiry_date=start+timedelta(days=days),total_sessions=int(request.POST.get("total_sessions") or 21),
-                custom_fee=Decimal(request.POST.get("custom_fee") or "0"),status="active")
+                custom_fee=Decimal(request.POST.get("custom_fee") or "0"),
+                preferred_training_time=request.POST.get("preferred_training_time") or None,status="active")
             AuditLog.objects.create(actor=request.user,action="created",model_name="Admission",object_id=str(admission.pk))
         messages.success(request,"Admission created.")
         return redirect("admission_detail",pk=admission.pk)
@@ -148,6 +149,25 @@ def admission_detail(request,pk):
         "whatsapp_message": f"Hello {admission.customer.full_name}, this is a reminder from Professional Motor Training School regarding your driving training. Please contact us for your next session.",
         "trainers":Employee.objects.filter(active=True),"vehicles":Vehicle.objects.all(),
         "extensions":admission.extensions.select_related("approved_by").all()})
+
+@staff_required
+def admission_card(request, pk):
+    admission = get_object_or_404(
+        Admission.objects.select_related("customer", "course", "vehicle"), pk=pk
+    )
+    sessions = list(admission.sessions.select_related("trainer").order_by("session_date", "start_time"))
+    paid = admission.payments.filter(status="success").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    balance = max(Decimal("0.00"), admission.custom_fee - paid)
+    rows = sessions[:admission.total_sessions]
+    rows += [None] * max(0, admission.total_sessions - len(rows))
+    return render(request, "admin/admission_card.html", {
+        "admission": admission,
+        "attendance_rows": rows,
+        "paid": paid,
+        "balance": balance,
+        "owner_name": settings.OWNER_NAME,
+        "owner_phone": getattr(settings, "OWNER_PHONE", ""),
+    })
 
 @staff_required
 def application_list(request):
@@ -187,7 +207,7 @@ def training_create(request):
             messages.error(request,"This customer already has a training session scheduled for that day.")
         else:
             TrainingSession.objects.create(admission=admission,session_date=session_date,
-                start_time=request.POST.get("start_time") or "09:00",trainer_id=request.POST.get("trainer"),
+                start_time=request.POST.get("start_time") or "09:00",end_time=request.POST.get("end_time") or None,trainer_id=request.POST.get("trainer"),
                 vehicle_id=request.POST.get("vehicle") or admission.vehicle_id,status="scheduled")
             messages.success(request,"Training scheduled.")
         return redirect("training_list")
