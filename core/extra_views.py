@@ -57,11 +57,16 @@ def fuel_create(request):
     if request.method=="POST":
         try:
             vehicle=get_object_or_404(Vehicle,pk=request.POST["vehicle"])
+            odometer = Decimal(request.POST["odometer"])
+            if odometer < vehicle.current_odometer:
+                raise ValueError
             FuelRecord.objects.create(vehicle=vehicle,fuel_type=vehicle.fuel_type,
                 refill_date=timezone.make_aware(datetime.fromisoformat(request.POST["refill_date"])),
                 quantity=Decimal(request.POST["quantity"]),unit=request.POST.get("unit","litres"),
-                amount=Decimal(request.POST["amount"]),odometer=Decimal(request.POST["odometer"]),
+                amount=Decimal(request.POST["amount"]),odometer=odometer,
                 remarks=request.POST.get("remarks","").strip(), receipt=request.FILES.get("receipt"))
+            vehicle.current_odometer = odometer
+            vehicle.save(update_fields=["current_odometer"])
             messages.success(request,"Fuel refill recorded.")
             return redirect("vehicle_list")
         except (KeyError,ValueError,InvalidOperation):
