@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from customers.models import Customer, TrainingApplication
-from operations.models import Admission, Course, Employee, TrainingSession, Vehicle, FuelRecord, MaintenanceRecord, VehicleCheck, Attendance, Salary
+from operations.models import Admission, AdmissionExtension, Course, Employee, TrainingSession, Vehicle, FuelRecord, MaintenanceRecord, VehicleCheck, Attendance, Salary
 from finance.models import Payment
 from services.models import ServiceRequest
 from .models import AuditLog
@@ -328,3 +328,35 @@ def report_export(request):
     for maintenance in MaintenanceRecord.objects.select_related("vehicle").filter(maintenance_date__range=(start, end)).order_by("maintenance_date"):
         writer.writerow(["Maintenance", maintenance.maintenance_date, maintenance.vehicle, maintenance.maintenance_type, maintenance.amount, "recorded"])
     return response
+
+@staff_required
+@require_POST
+def training_missed(request, pk):
+    with transaction.atomic():
+        session = get_object_or_404(TrainingSession.objects.select_for_update().select_related("admission"), pk=pk)
+        admission = Admission.objects.select_for_update().get(pk=session.admission_id)
+        if session.status != "scheduled":
+            messages.error(request, "Only scheduled sessions can be marked missed.")
+        elif session.session_date > timezone.localdate():
+            messages.error(request, "A future session cannot be marked missed.")
+        elif admission.status not in ["active", "expired"]:
+            messages.error(request, "Only an active or expired admission can receive a missed-session extension.")
+        else:
+            previous = admission.current_expiry_date
+            updated = previous + timedelta(days=1)
+            session.status = "missed"
+            session.recorded_by = request.user
+            session.remarks = (session.remarks + "\\n" if session.remarks else "") + "Marked missed by admin; one-day extension applied."
+            session.save(update_fields=["status", "recorded_by", "remarks"])
+            AdmissionExtension.objects.create(admission=admission, previous_expiry=previous,
+                extension_days=1, new_expiry=updated,
+                reason="Missed training session; one-day validity extension applied.",
+                approved_by=request.user)
+            admission.current_expiry_date = updated
+            admission.status = "active"
+            admission.save(update_fields=["current_expiry_date", "status", "updated_at"])
+            AuditLog.objects.create(actor=request.user, action="training_missed",
+                model_name="TrainingSession", object_id=str(session.pk),
+                details={"extension_days": 1, "new_expiry": str(updated)})
+            messages.success(request, "Session marked missed. Admission validity extended by one day.")
+    return redirect("training_list")
