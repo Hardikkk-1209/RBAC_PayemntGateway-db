@@ -184,7 +184,7 @@ def training_create(request):
         session_date=request.POST.get("session_date")
         if admission.status!="active" or session_date>str(admission.current_expiry_date):
             messages.error(request,"Admission is not active for this date.")
-        elif TrainingSession.objects.filter(admission=admission,session_date=session_date,status__in=["scheduled","completed"]).exists():
+        elif TrainingSession.objects.filter(admission__customer_id=admission.customer_id,session_date=session_date,status__in=["scheduled","completed"]).exists():
             messages.error(request,"This customer already has a training session scheduled for that day.")
         else:
             start_time = request.POST.get("start_time") or "22:00"
@@ -215,7 +215,7 @@ def training_complete(request,pk):
             messages.error(request,"Cannot complete a future or expired session.")
         elif admission.status!="active" or completed_count>=admission.total_sessions:
             messages.error(request,"Admission is inactive or all sessions are completed.")
-        elif completed.filter(session_date=session.session_date).exclude(pk=session.pk).exists():
+        elif TrainingSession.objects.filter(admission__customer_id=admission.customer_id,session_date=session.session_date,status="completed").exclude(pk=session.pk).exists():
             messages.error(request,"Only one completed session per admission per day.")
         elif not session.trainer_id or not session.vehicle_id:
             messages.error(request,"Assign a trainer and vehicle before completion.")
