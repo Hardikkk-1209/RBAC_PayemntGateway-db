@@ -179,6 +179,10 @@ def salary_generate(request):
         bonus = Decimal(request.POST.get("bonus") or "0")
         if min(advance, deductions, bonus) < 0:
             raise ValueError
+        existing_salary = Salary.objects.filter(employee=employee, month=month).first()
+        if existing_salary and existing_salary.status == "paid":
+            messages.error(request, "A paid salary record cannot be regenerated.")
+            return redirect("/admin-panel/salaries/?month=" + request.POST.get("month", ""))
         attendance = Attendance.objects.filter(employee=employee, date__year=month.year, date__month=month.month)
         present_days = attendance.filter(status="present").count()
         leave_days = attendance.filter(status="leave").count()
