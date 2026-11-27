@@ -299,3 +299,32 @@ def reports(request):
         "fuel_expense": fuel.aggregate(total=Sum("amount"))["total"] or Decimal("0.00"),
         "maintenance_expense": maintenance.aggregate(total=Sum("amount"))["total"] or Decimal("0.00"),
     })
+
+@staff_required
+def report_export(request):
+    import csv
+    today = timezone.localdate()
+    try:
+        start = date_type.fromisoformat(request.GET.get("start") or today.replace(day=1).isoformat())
+        end = date_type.fromisoformat(request.GET.get("end") or today.isoformat())
+        if end < start:
+            raise ValueError
+    except ValueError:
+        messages.error(request, "Choose a valid date range.")
+        return redirect("reports")
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="school-report.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Record type", "Date", "Customer / Vehicle", "Details", "Amount (INR)", "Status"])
+    sessions = TrainingSession.objects.select_related("admission__customer", "trainer", "vehicle").filter(session_date__range=(start, end)).order_by("session_date", "start_time")
+    for session in sessions:
+        hours = str(session.start_time) + "-" + str(session.end_time or "")
+        writer.writerow(["Training", session.session_date, session.admission.customer.full_name, hours, "", session.status])
+    payments = Payment.objects.select_related("customer").filter(payment_date__date__range=(start, end)).order_by("payment_date")
+    for payment in payments:
+        writer.writerow(["Payment", payment.payment_date, payment.customer.full_name, payment.receipt_number or payment.gateway_order_id, payment.amount, payment.status])
+    for fuel_record in FuelRecord.objects.select_related("vehicle").filter(refill_date__date__range=(start, end)).order_by("refill_date"):
+        writer.writerow(["Fuel", fuel_record.refill_date, fuel_record.vehicle, str(fuel_record.quantity) + " " + fuel_record.unit, fuel_record.amount, "recorded"])
+    for maintenance in MaintenanceRecord.objects.select_related("vehicle").filter(maintenance_date__range=(start, end)).order_by("maintenance_date"):
+        writer.writerow(["Maintenance", maintenance.maintenance_date, maintenance.vehicle, maintenance.maintenance_type, maintenance.amount, "recorded"])
+    return response
