@@ -208,11 +208,12 @@ def training_complete(request,pk):
         session=get_object_or_404(TrainingSession.objects.select_for_update().select_related("admission"),pk=pk)
         admission=Admission.objects.select_for_update().get(pk=session.admission_id)
         completed=TrainingSession.objects.filter(admission=admission,status="completed")
+        completed_count=completed.count()
         if session.status!="scheduled":
             messages.error(request,"Only scheduled sessions can be completed.")
         elif session.session_date>timezone.localdate() or session.session_date>admission.current_expiry_date:
             messages.error(request,"Cannot complete a future or expired session.")
-        elif admission.status!="active" or completed.count()>=admission.total_sessions:
+        elif admission.status!="active" or completed_count>=admission.total_sessions:
             messages.error(request,"Admission is inactive or all sessions are completed.")
         elif completed.filter(session_date=session.session_date).exclude(pk=session.pk).exists():
             messages.error(request,"Only one completed session per admission per day.")
@@ -244,7 +245,7 @@ def training_complete(request,pk):
                 condition=request.POST.get("vehicle_condition","normal"),
                 remarks=request.POST.get("vehicle_remarks",""))
             AuditLog.objects.create(actor=request.user,action="completed",model_name="TrainingSession",object_id=str(session.pk))
-            if completed.count()+1>=admission.total_sessions:
+            if completed_count+1>=admission.total_sessions:
                 admission.status="completed"; admission.save(update_fields=["status"])
             messages.success(request,"Training session marked completed.")
     return redirect("training_list")
