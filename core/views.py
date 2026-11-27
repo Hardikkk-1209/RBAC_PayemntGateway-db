@@ -119,20 +119,33 @@ def admission_create(request):
             if vehicle.category != course.category:
                 messages.error(request,"Selected vehicle does not match the course category.")
                 return redirect("admission_create")
-            start=timezone.localdate()
+            admission_date=timezone.localdate()
+            training_start=date_type.fromisoformat(request.POST.get("training_start_date") or timezone.localdate().isoformat())
             days=int(request.POST.get("validity_days") or 30)
+            total_sessions=int(request.POST.get("total_sessions") or 21)
+            trainer_id=request.POST.get("trainer")
+            if not trainer_id:
+                messages.error(request,"Select a trainer before creating the admission.")
+                return redirect("admission_create")
+            trainer=get_object_or_404(Employee,pk=trainer_id,designation="trainer",active=True)
             admission=Admission.objects.create(customer=customer,course=course,vehicle=vehicle,
-                admission_date=start,original_expiry_date=start+timedelta(days=days),
-                current_expiry_date=start+timedelta(days=days),total_sessions=int(request.POST.get("total_sessions") or 21),
-                custom_fee=Decimal(request.POST.get("custom_fee") or "0"),
-                status="active")
+                admission_date=admission_date,original_expiry_date=admission_date+timedelta(days=days),
+                current_expiry_date=admission_date+timedelta(days=days),total_sessions=total_sessions,
+                custom_fee=Decimal(request.POST.get("custom_fee") or "0"),status="active")
+            TrainingSession.objects.bulk_create([
+                TrainingSession(admission=admission,session_date=training_start+timedelta(days=i),
+                    start_time="09:00",trainer=trainer,vehicle=vehicle,status="scheduled")
+                for i in range(total_sessions)
+            ])
             AuditLog.objects.create(actor=request.user,action="created",model_name="Admission",object_id=str(admission.pk))
         messages.success(request,"Admission created.")
         return redirect("admission_detail",pk=admission.pk)
     return render(request,"admin/admission_form.html",{
         "selected_customer": request.GET.get("customer", ""),
         "customers":Customer.objects.all().order_by("full_name"),"courses":Course.objects.filter(active=True),
-        "vehicles":Vehicle.objects.filter(status="available"),"employees":Employee.objects.filter(active=True)
+        "vehicles":Vehicle.objects.filter(status="available"),
+        "employees":Employee.objects.filter(active=True,designation="trainer"),
+        "default_training_start":timezone.localdate().isoformat()
     })
 
 @staff_required
@@ -176,6 +189,31 @@ def training_list(request):
     date=request.GET.get("date") or timezone.localdate().isoformat()
     items=TrainingSession.objects.select_related("admission__customer","trainer","vehicle").filter(session_date=date).order_by("start_time")
     return render(request,"admin/training.html",{"sessions":items,"selected_date":date})
+
+@staff_required
+@require_POST
+def training_reschedule(request,pk):
+    session=get_object_or_404(TrainingSession.objects.select_related("admission"),pk=pk)
+    if session.status not in ["scheduled","missed"]:
+        messages.error(request,"Only pending or missed sessions can be rescheduled.")
+        return redirect("admission_detail",pk=session.admission_id)
+    try:
+        new_date=date_type.fromisoformat(request.POST.get("session_date",""))
+    except ValueError:
+        messages.error(request,"Choose a valid training date.")
+        return redirect("admission_detail",pk=session.admission_id)
+    conflict=TrainingSession.objects.filter(
+        admission__customer_id=session.admission.customer_id,session_date=new_date,
+        status__in=["scheduled","completed"]
+    ).exclude(pk=session.pk).exists()
+    if conflict:
+        messages.error(request,"This customer already has a session on that date.")
+    else:
+        session.session_date=new_date
+        session.status="scheduled"
+        session.save(update_fields=["session_date","status"])
+        messages.success(request,"Training date updated.")
+    return redirect("admission_detail",pk=session.admission_id)
 
 @staff_required
 def training_create(request):
