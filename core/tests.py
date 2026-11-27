@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -90,3 +90,38 @@ class TrainingRulesTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         self.assertEqual(TrainingSession.objects.filter(admission__customer=self.customer, session_date=date.today()).count(), 1)
+
+
+class AutomaticTrainingPlanTests(TrainingRulesTests):
+    def test_admission_creation_generates_21_consecutive_sessions(self):
+        start = date(2026, 12, 1)
+        response = self.client.post(reverse("admission_create"), {
+            "customer": str(self.customer.pk),
+            "course": str(self.course.pk),
+            "vehicle": str(self.vehicle.pk),
+            "custom_fee": "6000",
+            "total_sessions": "21",
+            "validity_days": "30",
+            "training_start_date": start.isoformat(),
+            "trainer": str(self.trainer.pk),
+        })
+        self.assertEqual(response.status_code, 302)
+        admission = Admission.objects.exclude(pk=self.admission.pk).get()
+        sessions = list(admission.sessions.order_by("session_date"))
+        self.assertEqual(len(sessions), 21)
+        self.assertEqual(sessions[0].session_date, start)
+        self.assertEqual(sessions[-1].session_date, start + timedelta(days=20))
+        self.assertTrue(all(s.trainer_id == self.trainer.pk for s in sessions))
+
+    def test_trainer_can_reschedule_a_generated_session(self):
+        session = TrainingSession.objects.create(
+            admission=self.admission, session_date=date.today(),
+            start_time="09:00", trainer=self.trainer, vehicle=self.vehicle
+        )
+        new_date = date.today() + timedelta(days=25)
+        response = self.client.post(reverse("training_reschedule", args=[session.pk]), {
+            "session_date": new_date.isoformat()
+        })
+        self.assertEqual(response.status_code, 302)
+        session.refresh_from_db()
+        self.assertEqual(session.session_date, new_date)
