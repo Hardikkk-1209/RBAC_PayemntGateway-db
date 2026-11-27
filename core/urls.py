@@ -10,6 +10,7 @@ urlpatterns = [
     path("admissions/", views.admission_list, name="admission_list"),
     path("admissions/new/", views.admission_create, name="admission_create"),
     path("admissions/<uuid:pk>/", views.admission_detail, name="admission_detail"),
+    path("admissions/<uuid:pk>/attendance-card/", views.admission_card, name="admission_card"),
     path("applications/", views.application_list, name="application_list"),
     path("applications/<int:pk>/decision/", views.application_decision, name="application_decision"),
     path("training/", views.training_list, name="training_list"),
