@@ -9,7 +9,6 @@ urlpatterns = [
     path("", core_views.home, name="home"),
     path("apply/", core_views.apply, name="apply"),
     path("admin-panel/", include("core.urls")),
-    path("api/", include("finance.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
