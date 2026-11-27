@@ -27,3 +27,14 @@ class TrainingRulesTests(TestCase):
     def test_public_application_page_loads(self):
         self.client.logout()
         self.assertEqual(self.client.get(reverse("apply")).status_code,200)
+
+    def test_attendance_card_shows_session_hours(self):
+        session = TrainingSession.objects.create(
+            admission=self.admission, session_date=date.today(),
+            start_time="22:00", end_time="22:30",
+            trainer=self.trainer, vehicle=self.vehicle, status="scheduled"
+        )
+        response = self.client.get(reverse("admission_card", args=[self.admission.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "10:00 PM")
+        self.assertContains(response, "10:30 PM")
