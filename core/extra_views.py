@@ -99,7 +99,7 @@ def service_request_create(request):
             application_date=request.POST.get("application_date") or timezone.localdate(),
             custom_fee=Decimal(request.POST.get("custom_fee") or "0"),
             assigned_employee_id=request.POST.get("assigned_employee") or None,
-            remarks=request.POST.get("remarks","").strip())
+            remarks=request.POST.get("remarks","").strip(),documents=request.FILES.get("documents"))
         messages.success(request,"Service request created.")
         return redirect("service_request_list")
     return render(request,"admin/service_request_form.html",{
@@ -224,3 +224,25 @@ def vehicle_status_update(request, pk):
             model_name="Vehicle", object_id=str(vehicle.pk), details={"status": status})
         messages.success(request, "Vehicle status updated.")
     return redirect("vehicle_list")
+
+@staff_required
+@require_POST
+def service_request_update(request, pk):
+    service_request = get_object_or_404(ServiceRequest, pk=pk)
+    status = request.POST.get("status")
+    try:
+        amount_paid = Decimal(request.POST.get("amount_paid") or "0")
+        if status not in dict(ServiceRequest.STATUS) or amount_paid < 0 or amount_paid > service_request.custom_fee:
+            raise ValueError
+        service_request.status = status
+        service_request.amount_paid = amount_paid
+        if status == "completed" and not service_request.completed_at:
+            service_request.completed_at = timezone.now()
+        service_request.save(update_fields=["status", "amount_paid", "completed_at"])
+        AuditLog.objects.create(actor=request.user, action="service_request_updated",
+            model_name="ServiceRequest", object_id=str(service_request.pk),
+            details={"status": status, "amount_paid": str(amount_paid)})
+        messages.success(request, "Service request updated.")
+    except (ValueError, InvalidOperation):
+        messages.error(request, "Check the service status and payment amount.")
+    return redirect("service_request_list")
