@@ -25,6 +25,7 @@ urlpatterns = [
     path("reports/export/", views.report_export, name="report_export"),
     path("admissions/<uuid:pk>/extend/", extra_views.extend_admission, name="extend_admission"),
     path("vehicles/new/", extra_views.vehicle_create, name="vehicle_create"),
+    path("vehicles/<uuid:pk>/status/", extra_views.vehicle_status_update, name="vehicle_status_update"),
     path("vehicles/fuel/new/", extra_views.fuel_create, name="fuel_create"),
     path("vehicles/maintenance/new/", extra_views.maintenance_create, name="maintenance_create"),
     path("employees/new/", extra_views.employee_create, name="employee_create"),
