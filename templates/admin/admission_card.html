@@ -29,7 +29,7 @@ table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px so
 <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
 <main class="sheet">
 <header class="top"><div><div class="brand">{{ owner_name }}</div><div class="contact" style="text-align:left">{{ owner_phone }}</div></div><div class="contact"><strong>TRAINING ATTENDANCE CARD</strong><br>Enrollment No. <span class="formline">{{ admission.pk|stringformat:"s"|slice:":8"|upper }}</span></div></header>
-<div class="time">TIME <span class="formline">{{ admission.preferred_training_time|time:"h:i A"|default:"To be assigned" }}</span></div>
+<div class="time">TIME <span class="formline">{{ session_time|time:"h:i A"|default:"To be assigned" }}</span></div>
 <h1>PROFESSIONAL MOTOR TRAINING</h1>
 {% if admission.customer.photograph %}<img class="photo" src="{{ admission.customer.photograph.url }}" alt="Candidate photograph">{% endif %}
 <section class="details">
