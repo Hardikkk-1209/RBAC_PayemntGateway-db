@@ -4,5 +4,5 @@ dj-database-url>=2.3
 whitenoise>=6.9
 gunicorn>=23.0
 Pillow>=11.0
-razorpay>=1.4
+django-storages[s3]>=1.14
 python-dotenv>=1.0
