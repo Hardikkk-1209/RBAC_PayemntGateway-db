@@ -221,6 +221,13 @@ def training_complete(request,pk):
         elif not request.POST.get("odometer_after"):
             messages.error(request,"Enter the vehicle odometer reading after training.")
         else:
+            actual_start = request.POST.get("start_time") or str(session.start_time)
+            actual_end = request.POST.get("end_time") or ""
+            if not actual_end or actual_end <= actual_start:
+                messages.error(request, "Enter valid actual start and end times.")
+                return redirect("training_list")
+            session.start_time = actual_start
+            session.end_time = actual_end
             session.status="completed"; session.recorded_by=request.user
             session.odometer_after=Decimal(request.POST.get("odometer_after"))
             vehicle = Vehicle.objects.select_for_update().get(pk=session.vehicle_id)
@@ -253,6 +260,8 @@ def employee_list(request):
     selected_date = request.GET.get("date") or timezone.localdate().isoformat()
     employees = Employee.objects.filter(active=True).order_by("employee_name")
     records = {str(a.employee_id): a.status for a in Attendance.objects.filter(date=selected_date)}
+    for employee in employees:
+        employee.attendance_status = records.get(str(employee.pk), "")
     return render(request, "admin/employees.html", {
         "employees": employees, "attendance_records": records, "selected_date": selected_date
     })
