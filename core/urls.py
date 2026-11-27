@@ -34,4 +34,5 @@ urlpatterns = [
     path("salaries/generate/", extra_views.salary_generate, name="salary_generate"),
     path("salaries/<int:pk>/paid/", extra_views.salary_mark_paid, name="salary_mark_paid"),
     path("services/new/", extra_views.service_request_create, name="service_request_create"),
+    path("services/<int:pk>/update/", extra_views.service_request_update, name="service_request_update"),
 ]
